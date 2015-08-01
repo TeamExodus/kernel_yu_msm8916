@@ -329,6 +329,21 @@ void cpufreq_notify_transition(struct cpufreq_policy *policy,
 }
 EXPORT_SYMBOL_GPL(cpufreq_notify_transition);
 
+/**
+ * cpufreq_notify_utilization - notify CPU userspace about CPU utilization
+ * change
+ *
+ * This function is called everytime the CPU load is evaluated by the
+ * ondemand governor. It notifies userspace of cpu load changes via sysfs.
+ */
+void cpufreq_notify_utilization(struct cpufreq_policy *policy,
+		unsigned int util)
+{
+	if (policy)
+		policy->util = util;
+}
+
+
 
 /*********************************************************************
  *                          SYSFS INTERFACE                          *
@@ -1104,7 +1119,7 @@ static int __cpufreq_add_dev(struct device *dev, struct subsys_interface *sif,
 	gov = __find_governor(per_cpu(cpufreq_policy_save, cpu).gov);
 	if (gov) {
 		policy->governor = gov;
-		pr_info("Restoring governor %s for cpu %d\n",
+		pr_debug("Restoring governor %s for cpu %d\n",
 		       policy->governor->name, cpu);
 	}
 	if (per_cpu(cpufreq_policy_save, cpu).min) {
@@ -1115,7 +1130,7 @@ static int __cpufreq_add_dev(struct device *dev, struct subsys_interface *sif,
 		policy->max = per_cpu(cpufreq_policy_save, cpu).max;
 		policy->user_policy.max = policy->max;
 	}
-	pr_info("Restoring CPU%d user policy min %d and max %d\n", cpu,
+	pr_debug("Restoring CPU%d min %d and max %d\n", cpu,
 		 policy->min, policy->max);
 #endif
 
@@ -1402,6 +1417,27 @@ static void cpufreq_out_of_sync(unsigned int cpu, unsigned int old_freq,
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_PRECHANGE);
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
 }
+
+ /**
+ * cpufreq_quick_get_util - get the CPU utilization from policy->util
+ * @cpu: CPU number
+ *
+ * This is the last known util, without actually getting it from the driver.
+ * Return value will be same as what is shown in util in sysfs.
+ */
+unsigned int cpufreq_quick_get_util(unsigned int cpu)
+{
+	struct cpufreq_policy *policy = cpufreq_cpu_get(cpu);
+	unsigned int ret_util = 0;
+
+	if (policy) {
+		ret_util = policy->util;
+		cpufreq_cpu_put(policy);
+	}
+
+	return ret_util;
+}
+EXPORT_SYMBOL(cpufreq_quick_get_util);
 
 /**
  * cpufreq_quick_get - get the CPU frequency (in kHz) from policy->cur
